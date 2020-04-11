@@ -111,10 +111,11 @@ class Solver:
             ans = self.solve_test(former_url + str(ind) + '/')
             if ans['result'] == 'Tasks not found':
                 break
-            result['result'][ind] = ans
+            result['result']['control' + str(ind)] = ans
             ind += 1
         if len(result['result']) == 0:
             return {'result': 'Controls not found'}
+        result['result']['train'] = self.solve_test('https://resh.edu.ru/subject/lesson/' + id + '/train/')
         return result
 
 
