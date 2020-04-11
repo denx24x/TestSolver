@@ -120,7 +120,7 @@ class Solver:
 
 @app.route('/')
 def index():
-    return 'Вот тут наверное будет форма крутая да...'
+    return {200: 'noH...'}
 
 
 @app.route('/solve_lesson/<login>/<password>/<id>')
