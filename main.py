@@ -42,6 +42,15 @@ def try_get(func, checker, *args, **kwargs):
     abort(400, {'result': 'could not connect to resh.edu.ru or request is invalid'})
 
 
+def filter_ans_json(x):
+    keys = ['score', 'success']
+    res = {}
+    for i in keys:
+        if i in x:
+            res[i] = x
+    return res
+
+
 class Solver:
     def __init__(self, login, password):
         self.login = login
@@ -53,7 +62,7 @@ class Solver:
         payload={'_username': self.login,'_password': self.password}
         logging = try_get(self.session.post, request_checker, 'https://resh.edu.ru/login_check', data=payload)
 
-    def solve_control(self, control_request):
+    def solve_test(self, control_request):
         page = try_get(self.session.get, request_checker, control_request, headers=headers)
         page = str(html.unescape(page.text))
         ids = []
@@ -90,7 +99,8 @@ class Solver:
             resp = try_get(self.session.post, request_checker, control_request + 'result/', data=result, headers=headers)
         except Exception as e:
             return {'result': 'The test was solved successful but sever did not accept it'}
-        return {'result': resp.json()['score']}      
+
+        return {'result': filter_ans_json(resp.json())}      
         
     def solve_lesson(self, id):
         former_url = 'https://resh.edu.ru/subject/lesson/' + id + '/control/'
@@ -98,7 +108,7 @@ class Solver:
         result = {'result': {}}
         while True:
             control = try_get(self.session.get, request_checker, former_url + str(ind) + '/', headers=headers)
-            ans = self.solve_control(former_url + str(ind) + '/')
+            ans = self.solve_test(former_url + str(ind) + '/')
             if ans['result'] == 'Tasks not found':
                 break
             result['result'][ind] = ans
@@ -120,7 +130,12 @@ def solve_ls(login, password, id):
 
 @app.route('/solve_control/<login>/<password>/<lid>/<id>')
 def solve_ct(login, password, lid, id):
-    return Solver(login, password).solve_control('https://resh.edu.ru/subject/lesson/' + lid + '/control/' + id + '/')
+    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lid + '/control/' + id + '/')
+
+
+@app.route('/solve_training/<login>/<password>/<lid>')
+def solve_training(login, password, lid):
+    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lid + '/train/')
 
 
 def main():
