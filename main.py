@@ -133,7 +133,7 @@ class Solver:
             result['result']['control' + str(ind)] = ans
             ind += 1
         if len(result['result']) == 0:
-            result['result']['control'] = 'Контрольные не найдены'
+            result['result']['control'] = 'Контрольные не найдены или указаны неверные логин\пароль'
         result['result']['training'] = self.solve_test('https://resh.edu.ru/subject/lesson/' + id + '/train/')
         return result
 
@@ -151,9 +151,11 @@ def index():
                 if 'result' in E:
                     res = E
                 else:
-                    res = {'result': 'ошибка!'}
+                    res = {'result': 'ошибка! Неверный формат'}
             except:
-                res = {'result': 'ошибка!'}
+                res = {'result': 'ошибка! Неверный формат'}
+        with open('logs.txt', 'a+') as st:
+            st.write(str(form.lessonId.data) + ' ' + str(form.TestId.data) + ' ' + str(res) + '\n')
         return render_template("index.html", form=form, result=res)
     return render_template("index.html", form=form, result={'result': ''})
         
