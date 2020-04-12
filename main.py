@@ -22,7 +22,7 @@ class SolveRequest(FlaskForm):
     login = StringField('Логин', validators=[DataRequired(), Length(0, 250)])
     password = StringField('Пароль', validators=[DataRequired(), Length(0, 250)])
     solveType = SelectField('Тип решения', choices=[('lesson', 'Решить урок'), ('control', 'Решить контрольную'), ('training', 'Решить тренировку')], validators=[DataRequired()])
-    lessonId = StringField('Номер урока', validators=[DataRequired(), Length(0, 250)])
+    lessonId = StringField('Айди урока', validators=[DataRequired(), Length(0, 250)])
     TestId = StringField('Номер контрольной (если решается контрольная)', validators=[validate_test_id])
     submit = SubmitField('Решить')
 
