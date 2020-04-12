@@ -1,11 +1,30 @@
 import flask
 import requests
 import html
-from flask import abort
+from flask import abort, render_template, request
 from html.parser import HTMLParser
 import json
 import os
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextAreaField, SelectField
+from wtforms.validators import DataRequired, Length, ValidationError
+from wtforms.fields.html5 import EmailField
+from flask_wtf import FlaskForm
 app = flask.Flask(__name__)
+app.config['SECRET_KEY'] = 'шуе ппш шпш 12342'
+
+
+def validate_test_id(form, field):
+    if form.solveType.data == 'control' and len(form.TestId.data) == 0:
+        raise ValidationError('Необходимо заполнить это поле')
+
+
+class SolveRequest(FlaskForm):
+    login = StringField('Логин', validators=[DataRequired(), Length(0, 250)])
+    password = StringField('Пароль', validators=[DataRequired(), Length(0, 250)])
+    solveType = SelectField('Тип решения', choices=[('lesson', 'Решить урок'), ('control', 'Решить контрольную'), ('training', 'Решить тренировку')], validators=[DataRequired()])
+    lessonId = StringField('Номер урока', validators=[DataRequired(), Length(0, 250)])
+    TestId = StringField('Номер контрольной (если решается контрольная)', validators=[validate_test_id])
+    submit = SubmitField('Решить')
 
 
 """
@@ -39,7 +58,7 @@ def try_get(func, checker, *args, **kwargs):
             print(e)
             continue
     print(*args)
-    abort(400, {'result': 'could not connect to resh.edu.ru or request is invalid'})
+    abort(400, {'result': 'Ошибка подключения к серверу, возможно, введены неверные данные'})
 
 
 def filter_ans_json(x):
@@ -47,7 +66,7 @@ def filter_ans_json(x):
     res = {}
     for i in keys:
         if i in x:
-            res[i] = x
+            res[i] = x[i]
     return res
 
 
@@ -71,7 +90,7 @@ class Solver:
                 continue
             ids.append(i.split('"')[1])
         if not len(ids):
-            return {'result': 'Tasks not found'}
+            return {'result': 'Задания не найдены'}
         result = {"answers": {}}
         
         for i in ids:
@@ -98,7 +117,7 @@ class Solver:
         try:
             resp = try_get(self.session.post, request_checker, control_request + 'result/', data=result, headers=headers)
         except Exception as e:
-            return {'result': 'The test was solved successful but sever did not accept it'}
+            return {'result': 'Сервер не принял решение, тест уже решен либо указаны неверные данные'}
 
         return {'result': filter_ans_json(resp.json())}      
         
@@ -109,34 +128,47 @@ class Solver:
         while True:
             control = try_get(self.session.get, request_checker, former_url + str(ind) + '/', headers=headers)
             ans = self.solve_test(former_url + str(ind) + '/')
-            if ans['result'] == 'Tasks not found':
+            if ans['result'] == 'Задания не найдены':
                 break
             result['result']['control' + str(ind)] = ans
             ind += 1
         if len(result['result']) == 0:
-            return {'result': 'Controls not found'}
-        result['result']['train'] = self.solve_test('https://resh.edu.ru/subject/lesson/' + id + '/train/')
+            result['result']['control'] = 'Контрольные не найдены'
+        result['result']['training'] = self.solve_test('https://resh.edu.ru/subject/lesson/' + id + '/train/')
         return result
 
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    return {200: 'noH...'}
+    form = SolveRequest()
+    if form.validate_on_submit():
+        func = {'lesson': solve_lesson, 'control': solve_control, 'training': solve_training}
+        try:
+            res = func[form.solveType.data](form.login.data, form.password.data, form.lessonId.data, form.TestId.data)
+        except Exception as E:
+            try:
+                print(E)
+                if 'result' in E:
+                    res = E
+                else:
+                    res = {'result': 'ошибка!'}
+            except:
+                res = {'result': 'ошибка!'}
+        return render_template("index.html", form=form, result=res)
+    return render_template("index.html", form=form, result={'result': ''})
+        
+
+def solve_lesson(login, password, lessonId, id):
+    return Solver(login, password).solve_lesson(lessonId)
 
 
-@app.route('/solve_lesson/<login>/<password>/<id>')
-def solve_ls(login, password, id):
-    return Solver(login, password).solve_lesson(id)
+def solve_control(login, password, lessonId, id):
+    print(login, password, lessonId, id)
+    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/control/' + id + '/')
 
 
-@app.route('/solve_control/<login>/<password>/<lid>/<id>')
-def solve_ct(login, password, lid, id):
-    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lid + '/control/' + id + '/')
-
-
-@app.route('/solve_training/<login>/<password>/<lid>')
-def solve_training(login, password, lid):
-    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lid + '/train/')
+def solve_training(login, password, lessonId, id):
+    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/train/')
 
 
 def main():
