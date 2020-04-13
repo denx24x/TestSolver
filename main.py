@@ -53,9 +53,10 @@ def request_checker(response):
 
 
 def try_get(func, checker, *args, **kwargs):
-    for i in range(3):
+    for i in range(5):
         try:
             result = func(*args, **kwargs)
+            print(result)
             if checker(result):
                 return result
         except Exception as e:
