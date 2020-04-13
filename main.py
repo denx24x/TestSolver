@@ -1,7 +1,8 @@
 import flask
 import requests
 import html
-from flask import abort, render_template, request
+import random
+from flask import abort, render_template, request, session
 from html.parser import HTMLParser
 import json
 import os
@@ -9,8 +10,11 @@ from wtforms import StringField, PasswordField, BooleanField, SubmitField, TextA
 from wtforms.validators import DataRequired, Length, ValidationError
 from wtforms.fields.html5 import EmailField
 from flask_wtf import FlaskForm
+import datetime
+import threading
 app = flask.Flask(__name__)
 app.config['SECRET_KEY'] = 'шуе ппш шпш 12342'
+results = {}    
 
 
 def validate_test_id(form, field):
@@ -138,25 +142,39 @@ class Solver:
         return result
 
 
+def solve(form, id):
+    func = {'lesson': solve_lesson, 'control': solve_control, 'training': solve_training}
+    try:
+        res = func[form.solveType.data](form.login.data, form.password.data, form.lessonId.data, form.TestId.data)
+    except Exception as E:
+        try:
+            print(E)
+            if 'result' in E:
+                res = E
+            else:
+                res = {'result': 'ошибка! Неверный формат'}
+        except:
+            res = {'result': 'ошибка! Неверный формат'}
+    with open('logs.txt', 'a+') as st:
+        st.write(str(form.lessonId.data) + ' ' + str(form.TestId.data) + ' ' + str(res) + '\n')
+    results[id] = res
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    if 'id' not in session:
+        session['id'] = random.randint(-100000000, 100000000)
     form = SolveRequest()
-    if form.validate_on_submit():
-        func = {'lesson': solve_lesson, 'control': solve_control, 'training': solve_training}
-        try:
-            res = func[form.solveType.data](form.login.data, form.password.data, form.lessonId.data, form.TestId.data)
-        except Exception as E:
-            try:
-                print(E)
-                if 'result' in E:
-                    res = E
-                else:
-                    res = {'result': 'ошибка! Неверный формат'}
-            except:
-                res = {'result': 'ошибка! Неверный формат'}
-        with open('logs.txt', 'a+') as st:
-            st.write(str(form.lessonId.data) + ' ' + str(form.TestId.data) + ' ' + str(res) + '\n')
-        return render_template("index.html", form=form, result=res)
+    if request.method == 'POST':
+        if session['id'] in results:
+            result = results[session['id']]
+            if result == 'Waiting':
+                return render_template("index.html", form=form, result={'result': 'Процесс выполняется...'})
+            del results[session['id']]
+            return render_template("index.html", form=form, result=result)
+        threading.Thread(target = solve, args = (form, session['id'])).start()
+        results[session['id']] = 'Waiting'
+        return render_template("index.html", form=form, result={'result': 'Процесс выполняется...'})
     return render_template("index.html", form=form, result={'result': ''})
         
 
