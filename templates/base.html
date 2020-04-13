@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <script ></script>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link rel="stylesheet"
           href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
@@ -18,9 +19,10 @@
 <main role="main" class="container">
     {% block content %}{% endblock %}
     <div class="col-md6 border rounded">
-        {{ result["result"] }}
+        <a id="result">{{ result["result"] }}</a>
     </div>
 </main>
-
+<script type="text/javascript"
+src="{{ url_for('static', filename='/js/checker.js') }}"></script>
 </body>
 </html>

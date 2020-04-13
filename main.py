@@ -80,6 +80,9 @@ class Solver:
         self.password = password
         self.create_session()
 
+    def logout(self):
+        logout = try_get(self.session.get, request_checker, 'https://resh.edu.ru/logout')
+
     def create_session(self):
         self.session = requests.Session()
         payload={'_username': self.login,'_password': self.password}
@@ -160,35 +163,57 @@ def solve(form, id):
     results[id] = res
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/result', methods=['GET', 'POST'])
+def get_result(): 
+    if 'id' not in session:
+            return {'result': ''}
+    if request.method == 'GET':
+        if session['id'] not in results:
+            return {'result': ''}
+        res = results[session['id']]
+        if results[session['id']] != {'result': 'Процесс выполняется...'}:
+            del results[session['id']]
+        return res
+    else:
+        if session['id'] in results:
+            return {'result': ''}
+        form = SolveRequest()
+        print(form.password.data)
+        threading.Thread(target = solve, args = (form, session['id'])).start()
+        results[session['id']] = {'result': 'Процесс выполняется...'}
+        return {'result': 'Процесс выполняется...'}
+
+    
+@app.route('/')
+@app.route('/index')
 def index():
     if 'id' not in session:
         session['id'] = random.randint(-100000000, 100000000)
     form = SolveRequest()
-    if request.method == 'POST':
-        if session['id'] in results:
-            result = results[session['id']]
-            if result == 'Waiting':
-                return render_template("index.html", form=form, result={'result': 'Процесс выполняется...'})
-            del results[session['id']]
-            return render_template("index.html", form=form, result=result)
-        threading.Thread(target = solve, args = (form, session['id'])).start()
-        results[session['id']] = 'Waiting'
-        return render_template("index.html", form=form, result={'result': 'Процесс выполняется...'})
+    if session['id'] in results:
+        return render_template("index.html", form=form, result=get_result)
     return render_template("index.html", form=form, result={'result': ''})
         
 
 def solve_lesson(login, password, lessonId, id):
-    return Solver(login, password).solve_lesson(lessonId)
+    solver = Solver(login, password)
+    result = solver.solve_lesson(lessonId)
+    solver.logout()
+    return result
 
 
 def solve_control(login, password, lessonId, id):
-    print(login, password, lessonId, id)
-    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/control/' + id + '/')
+    solver = Solver(login, password)
+    result = solver.solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/control/' + id + '/')
+    solver.logout()
+    return result
 
 
 def solve_training(login, password, lessonId, id):
-    return Solver(login, password).solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/train/')
+    solver = Solver(login, password)
+    result = solver.solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/train/')
+    solver.logout()
+    return result
 
 
 def main():
