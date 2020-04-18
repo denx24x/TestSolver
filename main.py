@@ -25,9 +25,10 @@ def validate_test_id(form, field):
 class SolveRequest(FlaskForm):
     login = StringField('Логин', validators=[DataRequired(), Length(0, 250)])
     password = StringField('Пароль', validators=[DataRequired(), Length(0, 250)])
-    solveType = SelectField('Тип решения', choices=[('lesson', 'Решить урок'), ('control', 'Решить контрольную'), ('training', 'Решить тренировку')], validators=[DataRequired()])
+    solveType = SelectField('Тип решения', choices=[('lesson', 'Решить урок'), ('control', 'Решить контрольную'), ('training', 'Решить тренировку')], validators=[DataRequired()], render_kw={'onchange': "ContentShow()"})
+    Score = SelectField('Оценка', choices=[('5', '5'), ('4', '4'), ('3', '3'), ('2', '2')], validators=[DataRequired()])
     lessonId = StringField('Айди урока', validators=[DataRequired(), Length(0, 250)])
-    TestId = StringField('Номер контрольной (если решается контрольная)', validators=[validate_test_id])
+    TestId = StringField('Номер контрольной', validators=[validate_test_id])
     submit = SubmitField('Решить')
 
 
@@ -89,7 +90,7 @@ class Solver:
         payload={'_username': self.login,'_password': self.password}
         logging = try_get(self.session.post, request_checker, 'https://resh.edu.ru/login_check', data=payload)
 
-    def solve_test(self, control_request):
+    def solve_test(self, control_request, need_score):
         page = try_get(self.session.get, request_checker, control_request, headers=headers)
         page = str(html.unescape(page.text))
         ids = []
@@ -100,7 +101,6 @@ class Solver:
         if not len(ids):
             return {'result': 'Задания не найдены'}
         result = {"answers": {}}
-        
         for i in ids:
             ans = try_get(requests.get, request_checker, 'https://resh.edu.ru/tests/' + i + '/get-answers', headers=data_headers)
             ans = ans.json()
@@ -121,6 +121,15 @@ class Solver:
                         new_ans[g[0]] = g[1]
                 ans =  new_ans
             result["answers"][i] = ans
+        cut_coff = 0
+        if need_score == '4':
+            cut_coff = min(1, len(ids))
+        elif need_score == '3':
+            cut_coff = min(2, len(ids))
+        elif need_score == '2':
+            cut_coff = len(ids)
+        for i in range(cut_coff):
+            result['answers'][ids[i]] = ''
         result['answers'] = json.dumps(result['answers'])
         try:
             resp = try_get(self.session.post, request_checker, control_request + 'result/', data=result, headers=headers)
@@ -129,27 +138,27 @@ class Solver:
 
         return {'result': filter_ans_json(resp.json())}      
         
-    def solve_lesson(self, id):
+    def solve_lesson(self, id, score):
         former_url = 'https://resh.edu.ru/subject/lesson/' + id + '/control/'
         ind = 1
         result = {'result': {}}
         while True:
             control = try_get(self.session.get, request_checker, former_url + str(ind) + '/', headers=headers)
-            ans = self.solve_test(former_url + str(ind) + '/')
+            ans = self.solve_test(former_url + str(ind) + '/', score)
             if ans['result'] == 'Задания не найдены':
                 break
             result['result']['control' + str(ind)] = ans
             ind += 1
         if len(result['result']) == 0:
             result['result']['control'] = 'Контрольные не найдены или указаны неверные логин\пароль'
-        result['result']['training'] = self.solve_test('https://resh.edu.ru/subject/lesson/' + id + '/train/')
+        result['result']['training'] = self.solve_test('https://resh.edu.ru/subject/lesson/' + id + '/train/', score)
         return result
 
 
 def solve(form, id):
     func = {'lesson': solve_lesson, 'control': solve_control, 'training': solve_training}
     try:
-        res = func[form.solveType.data](form.login.data, form.password.data, form.lessonId.data, form.TestId.data)
+        res = func[form.solveType.data](form.login.data, form.password.data, form.lessonId.data, form.TestId.data, form.Score.data)
     except Exception as E:
         try:
             print(E)
@@ -179,7 +188,7 @@ def get_result():
         if session['id'] in results:
             return {'result': ''}
         form = SolveRequest()
-        print(form.password.data)
+        print(form.Score.data)
         threading.Thread(target = solve, args = (form, session['id'])).start()
         results[session['id']] = {'result': 'Процесс выполняется...'}
         return {'result': 'Процесс выполняется...'}
@@ -196,23 +205,23 @@ def index():
     return render_template("index.html", form=form, result={'result': ''})
         
 
-def solve_lesson(login, password, lessonId, id):
+def solve_lesson(login, password, lessonId, id, score):
     solver = Solver(login, password)
-    result = solver.solve_lesson(lessonId)
+    result = solver.solve_lesson(lessonId, score)
     solver.logout()
     return result
 
 
-def solve_control(login, password, lessonId, id):
+def solve_control(login, password, lessonId, id, score):
     solver = Solver(login, password)
-    result = solver.solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/control/' + id + '/')
+    result = solver.solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/control/' + id + '/', score)
     solver.logout()
     return result
 
 
-def solve_training(login, password, lessonId, id):
+def solve_training(login, password, lessonId, id, score):
     solver = Solver(login, password)
-    result = solver.solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/train/')
+    result = solver.solve_test('https://resh.edu.ru/subject/lesson/' + lessonId + '/train/', score)
     solver.logout()
     return result
 

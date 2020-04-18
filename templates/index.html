@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+<script>
+    function ContentShow() {
+        let box_value = document.getElementById("solveType").value;
+        if (box_value === "control") {
+            document.getElementById("TestId").style.display = "initial"
+        } else {
+            document.getElementById("TestId").style.display = "none"
+        }
+    }
+</script>
+
 <form id="main_form">
     {{ form.hidden_tag() }}
     <p>
@@ -21,14 +33,24 @@
             </p>
         {% endfor %}
     </p>
-    <p>
-        {{ form.solveType(class="form-control") }}<br>
+    <div class="form-row">
+        <div class="col">
+        {{ form.solveType(class="form-control", id="solveType") }}<br>
         {% for error in form.solveType.errors %}
             <p class="alert alert-danger" role="alert">
                 {{ error }}
             </p>
         {% endfor %}
-    </p>
+        </div>
+        <div class="form-group col-md-2">
+        {{ form.Score(class="form-control") }}<br>
+        {% for error in form.Score.errors %}
+            <p class="alert alert-danger" role="alert">
+                {{ error }}
+            </p>
+        {% endfor %}
+        </div>
+    </div>
     <p>
         {{ form.lessonId.label }}<br>
         {{ form.lessonId(class="form-control") }}<br>
@@ -38,7 +60,7 @@
             </p>
         {% endfor %}
     </p>
-    <p>
+    <p id="TestId" style="display: none;">
         {{ form.TestId.label }}<br>
         {{ form.TestId(class="form-control") }}<br>
         {% for error in form.password.errors %}
